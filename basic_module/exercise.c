@@ -11,8 +11,14 @@ MODULE_AUTHOR("Andrzej Telszewski");
 MODULE_DESCRIPTION("Cool module because it does nothing");
 MODULE_VERSION("1.2.3");
 
+static int exercise_param = 42;
+module_param(exercise_param, int, 0644);
+MODULE_PARM_DESC(exercise_param, "does completely nothing");
+
 static int __init exercise_init(void)
 {
+    pr_info("exercise_param=%i\n", exercise_param);
+
     return 0;
 }
 
