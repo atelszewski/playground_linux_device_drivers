@@ -1,4 +1,5 @@
 obj-m += exercise.o
+obj-m += second_thread.o
 
 KERNELDIR ?= /lib/modules/$(shell uname -r)/build
 PWD := $(shell pwd)

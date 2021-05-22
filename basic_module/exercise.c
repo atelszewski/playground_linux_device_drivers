@@ -31,10 +31,27 @@ MODULE_PARM_DESC(exercise_param, "does completely nothing");
  * - use blocking functions,
  * - be event driven (implement state machines). */
 
+/* Note:
+ * The module fails to `unload` if the symbol exported with
+ * `EXPORT_SYMBOL_GPL()` is in use by another module.
+ * It's a protection mechanism. */
+
+static char e_precious_data[16];
+static DEFINE_MUTEX(e_precious_data_lock);
+EXPORT_SYMBOL_GPL(e_precious_data);
+EXPORT_SYMBOL_GPL(e_precious_data_lock);
+
 static int e_thread_fn(void * data)
 {
     while (!kthread_should_stop())
     {
+        mutex_lock(&e_precious_data_lock);
+        pr_info("%s: mutex locked: %s\n", KBUILD_MODNAME, e_precious_data);
+        strcpy(e_precious_data, "DEADBEEF");
+        msleep(1000U);
+
+        mutex_unlock(&e_precious_data_lock);
+        pr_info("%s: mutex unlocked\n", KBUILD_MODNAME);
         msleep(100U);
     }
 
