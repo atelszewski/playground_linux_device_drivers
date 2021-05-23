@@ -26,11 +26,11 @@ static int second_thread_fn(void * data)
     while (!kthread_should_stop())
     {
         mutex_lock(&e_precious_data_lock);
-        pr_info("%s: mutex locked: %s\n", KBUILD_MODNAME, e_precious_data);
+        trace_printk("%s: mutex locked: %s\n", KBUILD_MODNAME, e_precious_data);
         strcpy(e_precious_data, "CAFFEE");
 
         mutex_unlock(&e_precious_data_lock);
-        pr_info("%s: mutex unlocked\n", KBUILD_MODNAME);
+        trace_printk("%s: mutex unlocked\n", KBUILD_MODNAME);
         msleep(100U);
     }
 

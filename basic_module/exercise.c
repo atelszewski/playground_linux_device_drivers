@@ -101,13 +101,27 @@ static int e_thread_fn(void * data)
 {
     while (!kthread_should_stop())
     {
+        /* NOTE:
+         *
+         * - For tracing (ftrace) to work, _debugfs_ must be mounted.
+         * - Tracing settings are located in _/sys/kernel/debug/tracing_. */
+
+        /* TODO:
+         *
+         * What is the following message all about?
+         *
+         *     ** trace_printk() being used. Allocating extra memory.  **
+         *     **                                                      **
+         *     ** This means that this is a DEBUG kernel and it is     **
+         *     ** unsafe for production use. */
+
         mutex_lock(&e_precious_data_lock);
-        pr_info("%s: mutex locked: %s\n", KBUILD_MODNAME, e_precious_data);
+        trace_printk("%s: mutex locked: %s\n", KBUILD_MODNAME, e_precious_data);
         strcpy(e_precious_data, "DEADBEEF");
         msleep(1000U);
 
         mutex_unlock(&e_precious_data_lock);
-        pr_info("%s: mutex unlocked\n", KBUILD_MODNAME);
+        trace_printk("%s: mutex unlocked\n", KBUILD_MODNAME);
         msleep(100U);
     }
 
