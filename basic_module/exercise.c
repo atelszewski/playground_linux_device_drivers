@@ -1,4 +1,5 @@
 #include <linux/delay.h>
+#include <linux/device.h>
 #include <linux/err.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -22,6 +23,48 @@ MODULE_VERSION("1.2.3");
 static int exercise_param = 42;
 module_param(exercise_param, int, 0644);
 MODULE_PARM_DESC(exercise_param, "does completely nothing");
+
+/* sysfs entries. */
+
+static ssize_t sys_show(struct device * dev,
+    struct device_attribute * attr, char * buf)
+{
+    /* TODO:
+     *
+     * What's the max size of buf?
+     * Better to use `snprintf()`? */
+
+    return sprintf(buf, "exercise_param = %i\n", exercise_param);
+}
+
+static ssize_t sys_store(struct device * dev,
+    struct device_attribute * attr, char const * buf, size_t count)
+{
+    int ret;
+
+    ret = sscanf(buf, "%i", &exercise_param);
+
+    if (1 != ret)
+    {
+        return -EINVAL;
+    }
+
+    return count;
+}
+
+static DEVICE_ATTR(exercise_param, 0644, sys_show, sys_store);
+
+static struct attribute * sys_attr[] =
+{
+    &dev_attr_exercise_param.attr,
+    NULL
+};
+
+static struct attribute_group const sys_group =
+{
+    .name = "e_group",
+    .attrs = sys_attr
+};
 
 /* NOTE:
  *
@@ -64,8 +107,33 @@ static int e_thread_fn(void * data)
 
 static struct task_struct * e_thread = NULL;
 
+/* TODO:
+ *
+ * It's not possible to unload the module, because of the following error:
+ *
+ *     $ rmmod exercise
+ *     rmmod: ERROR: Module exercise is in use by: e_group
+ *     $ lsmod | head
+ *     Module                  Size  Used by
+ *     exercise               16384  0 e_group
+ *
+ * `e_group` is the name of the group created with `sysfs_create_group()`. */
+
 static int __init exercise_init(void)
 {
+    int ret = 0;
+    int sys_ret;
+
+    sys_ret = sysfs_create_group(THIS_MODULE->holders_dir, &sys_group);
+
+    if (0 != sys_ret)
+    {
+        pr_err("error creating sysfs group: %i\n", sys_ret);
+
+        ret = sys_ret;
+        goto on_error;
+    }
+
     pr_info("exercise_param=%i\n", exercise_param);
 
     e_thread = kthread_create(e_thread_fn, NULL, "e_thread");
@@ -74,24 +142,38 @@ static int __init exercise_init(void)
     {
         pr_err("unable to create kernel thread\n");
 
-        return -PTR_ERR(e_thread);
+        ret = -PTR_ERR(e_thread);
+        goto on_error;
     }
 
     wake_up_process(e_thread);
 
-    return 0;
+    return ret;
+
+on_error:
+    if (!IS_ERR(e_thread))
+    {
+        /* TODO:
+         *
+         * Is it needed to somehow clean-up after `kthread_create`? */
+
+        kthread_stop(e_thread);
+        e_thread = NULL;
+    }
+
+    if (0 == sys_ret)
+    {
+        sysfs_remove_group(THIS_MODULE->holders_dir, &sys_group);
+        sys_ret = -EINVAL;
+    }
+
+    return ret;
 }
 
 static void __exit exercise_exit(void)
 {
-    int e_thread_ret;
-
-    if (!IS_ERR_OR_NULL(e_thread))
-    {
-        e_thread_ret = kthread_stop(e_thread);
-
-        pr_info("e_thread returned %i\n", e_thread_ret);
-    }
+    kthread_stop(e_thread);
+    sysfs_remove_group(THIS_MODULE->holders_dir, &sys_group);
 }
 
 module_init(exercise_init);
