@@ -1,12 +1,13 @@
-#include <linux/module.h>
-#include <linux/moduleparam.h>
+#include <linux/delay.h>
+#include <linux/err.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
-#include <linux/threads.h>
 #include <linux/kthread.h>
-#include <linux/delay.h>
+#include <linux/module.h>
+#include <linux/moduleparam.h>
 #include <linux/sched.h>
-#include <linux/err.h>
+#include <linux/threads.h>
+#include <linux/types.h>
 
 /* Note: Module info entries are only refreshed after module is installed
  * in /lib/modules and dempmod-ed. They are not available after sole insmod. */
