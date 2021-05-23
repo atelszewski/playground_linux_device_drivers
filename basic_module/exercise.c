@@ -181,7 +181,10 @@ on_error:
     {
         /* TODO:
          *
-         * Is it needed to somehow clean-up after `kthread_create`? */
+         * Is it needed to somehow clean-up after `kthread_create`?
+         * Try using _kmemleak_ to find out:
+         *
+         *     $ echo scan > /sys/kernel/debug/kmemleak */
 
         kthread_stop(e_thread);
         e_thread = NULL;
