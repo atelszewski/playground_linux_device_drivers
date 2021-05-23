@@ -1,1 +1,1 @@
-Source code for Linux Kernel Drivers Development training.
+Source code for Linux Device Drivers development training.
