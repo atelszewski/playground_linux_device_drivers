@@ -10,6 +10,11 @@
 #include <linux/threads.h>
 #include <linux/types.h>
 
+/* Allow to disable sysfs entries until the error with module
+ * unloading is fixed. */
+
+#define SYSFS_GROUP_ENABLE 0
+
 /* NOTE:
  *
  * Module info entries are only refreshed after module is installed
@@ -25,6 +30,8 @@ module_param(exercise_param, int, 0644);
 MODULE_PARM_DESC(exercise_param, "does completely nothing");
 
 /* sysfs entries. */
+
+#if SYSFS_GROUP_ENABLE
 
 static ssize_t sys_show(struct device * dev,
     struct device_attribute * attr, char * buf)
@@ -65,6 +72,8 @@ static struct attribute_group const sys_group =
     .name = "e_group",
     .attrs = sys_attr
 };
+
+#endif
 
 /* NOTE:
  *
@@ -122,6 +131,8 @@ static struct task_struct * e_thread = NULL;
 static int __init exercise_init(void)
 {
     int ret = 0;
+
+#if SYSFS_GROUP_ENABLE
     int sys_ret;
 
     sys_ret = sysfs_create_group(THIS_MODULE->holders_dir, &sys_group);
@@ -133,6 +144,7 @@ static int __init exercise_init(void)
         ret = sys_ret;
         goto on_error;
     }
+#endif
 
     pr_info("exercise_param=%i\n", exercise_param);
 
@@ -161,11 +173,13 @@ on_error:
         e_thread = NULL;
     }
 
+#if SYSFS_GROUP_ENABLE
     if (0 == sys_ret)
     {
         sysfs_remove_group(THIS_MODULE->holders_dir, &sys_group);
         sys_ret = -EINVAL;
     }
+#endif
 
     return ret;
 }
@@ -173,7 +187,10 @@ on_error:
 static void __exit exercise_exit(void)
 {
     kthread_stop(e_thread);
+
+#if SYSFS_GROUP_ENABLE
     sysfs_remove_group(THIS_MODULE->holders_dir, &sys_group);
+#endif
 }
 
 module_init(exercise_init);
