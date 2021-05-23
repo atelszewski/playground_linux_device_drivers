@@ -9,7 +9,9 @@
 #include <linux/threads.h>
 #include <linux/types.h>
 
-/* Note: Module info entries are only refreshed after module is installed
+/* NOTE:
+ *
+ * Module info entries are only refreshed after module is installed
  * in /lib/modules and dempmod-ed. They are not available after sole insmod. */
 
 MODULE_LICENSE("GPL");
@@ -21,7 +23,8 @@ static int exercise_param = 42;
 module_param(exercise_param, int, 0644);
 MODULE_PARM_DESC(exercise_param, "does completely nothing");
 
-/* Note:
+/* NOTE:
+ *
  * The module fails to `unload` if the symbol exported with
  * `EXPORT_SYMBOL_GPL()` is in use by another module.
  * It's a protection mechanism. */
@@ -31,7 +34,7 @@ static DEFINE_MUTEX(e_precious_data_lock);
 EXPORT_SYMBOL_GPL(e_precious_data);
 EXPORT_SYMBOL_GPL(e_precious_data_lock);
 
-/* Note:
+/* NOTE:
  *
  * kthreads cannot:
  * - use copy_{to|from}_user,
