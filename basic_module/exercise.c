@@ -21,6 +21,16 @@ module_param(exercise_param, int, 0644);
 MODULE_PARM_DESC(exercise_param, "does completely nothing");
 
 /* Note:
+ * The module fails to `unload` if the symbol exported with
+ * `EXPORT_SYMBOL_GPL()` is in use by another module.
+ * It's a protection mechanism. */
+
+static char e_precious_data[16];
+static DEFINE_MUTEX(e_precious_data_lock);
+EXPORT_SYMBOL_GPL(e_precious_data);
+EXPORT_SYMBOL_GPL(e_precious_data_lock);
+
+/* Note:
  *
  * kthreads cannot:
  * - use copy_{to|from}_user,
@@ -30,16 +40,6 @@ MODULE_PARM_DESC(exercise_param, "does completely nothing");
  * - use mutexes,
  * - use blocking functions,
  * - be event driven (implement state machines). */
-
-/* Note:
- * The module fails to `unload` if the symbol exported with
- * `EXPORT_SYMBOL_GPL()` is in use by another module.
- * It's a protection mechanism. */
-
-static char e_precious_data[16];
-static DEFINE_MUTEX(e_precious_data_lock);
-EXPORT_SYMBOL_GPL(e_precious_data);
-EXPORT_SYMBOL_GPL(e_precious_data_lock);
 
 static int e_thread_fn(void * data)
 {
