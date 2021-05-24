@@ -271,6 +271,11 @@ static int __init exercise_init(void)
 #if SYSFS_GROUP_ENABLE
     int sys_ret;
 
+    /* NOTE:
+     *
+     * The actual _sysfs_ entries (device attributes) will be located in
+     * `/sys/module/MODULE_NAME/holders/GROUP_NAME` directory. */
+
     sys_ret = sysfs_create_group(THIS_MODULE->holders_dir, &sys_group);
 
     if (0 != sys_ret)
