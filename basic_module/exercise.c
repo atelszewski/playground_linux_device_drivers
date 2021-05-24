@@ -1,3 +1,4 @@
+#include <linux/debugfs.h>
 #include <linux/delay.h>
 #include <linux/device.h>
 #include <linux/err.h>
@@ -29,6 +30,122 @@ MODULE_VERSION("1.2.3");
 static int exercise_param = 42;
 module_param(exercise_param, int, 0644);
 MODULE_PARM_DESC(exercise_param, "does completely nothing");
+
+/* debugfs entries. */
+
+/* The complex way. */
+
+static ssize_t dbg_custom_string_value_get(struct file * file,
+    char * __user usrbuf, size_t usrlen, loff_t * off);
+static ssize_t dbg_custom_string_value_set(struct file * file,
+    char const * __user usrbuf, size_t usrlen, loff_t * off);
+
+static struct file_operations const dbg_custom_string_value_fops = {
+    .owner = THIS_MODULE,
+    .read = dbg_custom_string_value_get,
+    .write = dbg_custom_string_value_set
+};
+
+static char dbg_custom_string_value[32];
+static struct dentry * dbg_parent_dir_dent;
+static struct dentry * dbg_custom_string_value_dent;
+
+static ssize_t dbg_custom_string_value_get(struct file * file,
+    char * __user usrbuf, size_t usrlen, loff_t * off)
+{
+    ssize_t len_kern;
+    ssize_t len_left;
+
+    len_kern = min((loff_t) sizeof(dbg_custom_string_value) - *off,
+        (loff_t) usrlen);
+
+    if (0 >= len_kern)
+    {
+        return 0;
+    }
+
+    len_left = copy_to_user(usrbuf, &dbg_custom_string_value[*off], len_kern);
+
+    if (0 != len_left)
+    {
+        return -EFAULT;
+    }
+
+    *off += len_kern;
+
+    return len_kern;
+}
+
+static ssize_t dbg_custom_string_value_set(struct file * file,
+    char const * __user usrbuf, size_t usrlen, loff_t * off)
+{
+    ssize_t len_kern;
+    ssize_t len_left;
+
+    len_kern = min((loff_t) sizeof(dbg_custom_string_value) - *off,
+        (loff_t) usrlen);
+
+    if (0 >= len_kern)
+    {
+        return 0;
+    }
+
+    len_left = copy_from_user(&dbg_custom_string_value[*off], usrbuf, len_kern);
+
+    *off += len_kern;
+
+    return len_kern;
+}
+
+static int dbg_create(void);
+static void dbg_remove(void);
+
+static int dbg_create(void)
+{
+    int ret = 0;
+
+    dbg_parent_dir_dent = debugfs_create_dir("e_device", NULL);
+
+    if (IS_ERR(dbg_parent_dir_dent))
+    {
+        pr_err("unable to create debugfs parent\n");
+
+        ret = -PTR_ERR(dbg_parent_dir_dent);
+        goto on_error;
+    }
+
+    dbg_custom_string_value_dent = debugfs_create_file("custom_value",
+        0644, dbg_parent_dir_dent, NULL, &dbg_custom_string_value_fops);
+
+    if (IS_ERR(dbg_custom_string_value_dent))
+    {
+        pr_err("unable to create debugfs custom string value entry\n");
+
+        ret = -PTR_ERR(dbg_custom_string_value_dent);
+        goto on_error;
+    }
+
+    return ret;
+
+on_error:
+    dbg_remove();
+    return ret;
+}
+
+static void dbg_remove(void)
+{
+    if (!IS_ERR_OR_NULL(dbg_custom_string_value_dent))
+    {
+        debugfs_remove(dbg_custom_string_value_dent);
+        dbg_custom_string_value_dent = NULL;
+    }
+
+    if (!IS_ERR_OR_NULL(dbg_parent_dir_dent))
+    {
+        debugfs_remove(dbg_parent_dir_dent);
+        dbg_parent_dir_dent = NULL;
+    }
+}
 
 /* sysfs entries. */
 
@@ -265,8 +382,17 @@ static void e_driver_reset(struct platform_data * pdata)
 static int __init exercise_init(void)
 {
     int ret = 0;
+    int dbg_ret;
     int pdev_ret;
     int pdrv_ret;
+
+    dbg_ret = dbg_create();
+
+    if (0 != dbg_ret)
+    {
+        ret = dbg_ret;
+        goto on_error;
+    }
 
 #if SYSFS_GROUP_ENABLE
     int sys_ret;
@@ -364,6 +490,12 @@ on_error:
     }
 #endif
 
+    if (0 == dbg_ret)
+    {
+        dbg_remove();
+        dbg_ret = -EINVAL;
+    }
+
     return ret;
 }
 
@@ -384,6 +516,8 @@ static void __exit exercise_exit(void)
 #if SYSFS_GROUP_ENABLE
     sysfs_remove_group(THIS_MODULE->holders_dir, &sys_group);
 #endif
+
+    dbg_remove();
 }
 
 module_init(exercise_init);
