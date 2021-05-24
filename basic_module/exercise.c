@@ -6,6 +6,7 @@
 #include <linux/kthread.h>
 #include <linux/module.h>
 #include <linux/moduleparam.h>
+#include <linux/platform_device.h>
 #include <linux/sched.h>
 #include <linux/threads.h>
 #include <linux/types.h>
@@ -130,6 +131,125 @@ static int e_thread_fn(void * data)
 
 static struct task_struct * e_thread = NULL;
 
+/* NOTE:
+ *
+ * Platform device is one that cannot be auto-discovered, nor it can be
+ * hot-plugged. In most cases, it's embedded on the board or within the SOC.
+ * Additional resources:
+ *
+ * - [Kernel's device model](https://lwn.net/Articles/645810/)
+ * - [Linux Platform Device Driver](https://tinyurl.com/a3whctpc) */
+
+/* Platform device specific data. */
+
+struct platform_data;
+
+static void e_driver_power_on(struct platform_data * pdata);
+static void e_driver_power_off(struct platform_data * pdata);
+static void e_driver_reset(struct platform_data * pdata);
+
+struct platform_data {
+    void (*power_on)(struct platform_data * pdata);
+    void (*power_off)(struct platform_data * pdata);
+    void (*reset)(struct platform_data * pdata);
+};
+
+static struct platform_data e_platform_data = {
+    .power_on = e_driver_power_on,
+    .power_off = e_driver_power_off,
+    .reset = e_driver_reset
+};
+
+/* Platform device. */
+
+/* NOTE:
+ *
+ *  `.name` is used by the kernel for matching the driver and calling its
+ *  `probe()` function when the driver is installed. This function must be
+ *  called before registering the platform driver. */
+
+static struct platform_device e_device = {
+    .name = "e_device",
+    .id = PLATFORM_DEVID_NONE,
+    .dev.platform_data = &e_platform_data
+};
+
+/* NOTE:
+ *
+ * Platform driver implements the `probe()` function that gets called when
+ * the driver is inserted. It makes use of platform specific data to make
+ * the driver platform agnostic, by using per-platform configuration.
+ * `.driver.name` should match the corresponding device's `.name`. */
+
+/* Platform driver. */
+
+static int e_driver_probe(struct platform_device * pdev);
+static int e_driver_remove(struct platform_device * pdev);
+
+static struct platform_driver e_driver = {
+    .probe = e_driver_probe,
+    .remove = e_driver_remove,
+    .driver = {
+        .name = "e_device",
+        .owner = THIS_MODULE,
+        .pm = NULL
+    }
+};
+
+static int e_driver_probe(struct platform_device * pdev)
+{
+    struct platform_data * pdata;
+
+    trace_printk("e_driver: probe()\n");
+
+    pdata = dev_get_platdata(&pdev->dev);
+
+    if (NULL != pdata->power_on)
+    {
+        pdata->power_on(pdata);
+    }
+
+    udelay(5000U);
+
+    if (NULL != pdata->reset)
+    {
+        pdata->reset(pdata);
+    }
+
+    return 0;
+}
+
+static int e_driver_remove(struct platform_device * pdev)
+{
+    struct platform_data * pdata;
+
+    pdata = dev_get_platdata(&pdev->dev);
+
+    trace_printk("e_driver: remove()\n");
+
+    if (NULL != pdata->power_off)
+    {
+        pdata->power_off(pdata);
+    }
+
+    return 0;
+}
+
+static void e_driver_power_on(struct platform_data * pdata)
+{
+    trace_printk("e_driver: power_on()\n");
+}
+
+static void e_driver_power_off(struct platform_data * pdata)
+{
+    trace_printk("e_driver: power_off()\n");
+}
+
+static void e_driver_reset(struct platform_data * pdata)
+{
+    trace_printk("e_driver: reset()\n");
+}
+
 /* TODO:
  *
  * It's not possible to unload the module, because of the following error:
@@ -145,6 +265,8 @@ static struct task_struct * e_thread = NULL;
 static int __init exercise_init(void)
 {
     int ret = 0;
+    int pdev_ret;
+    int pdrv_ret;
 
 #if SYSFS_GROUP_ENABLE
     int sys_ret;
@@ -174,9 +296,48 @@ static int __init exercise_init(void)
 
     wake_up_process(e_thread);
 
+    pdev_ret = platform_device_register(&e_device);
+
+    if (0 != pdev_ret)
+    {
+        pr_err("unable to register platform device: %i\n", pdev_ret);
+
+        ret = pdev_ret;
+        goto on_error;
+    }
+
+    /* TODO:
+     *
+     * - Write down difference between `platform_driver_register()` and
+     *   `platform_driver_probe()`.
+     * - Learn about `module_platform_driver()`.
+     * - Learn about using DT for device/driver configuration. */
+
+    pdrv_ret = platform_driver_probe(&e_driver, NULL);
+
+    if (0 != pdrv_ret)
+    {
+        pr_err("error probing the device: %i\n", pdrv_ret);
+
+        ret = pdrv_ret;
+        goto on_error;
+    }
+
     return ret;
 
 on_error:
+    if (0 == pdrv_ret)
+    {
+        platform_driver_unregister(&e_driver);
+        pdrv_ret = -EINVAL;
+    }
+
+    if (0 == pdev_ret)
+    {
+        platform_device_unregister(&e_device);
+        pdev_ret = -EINVAL;
+    }
+
     if (!IS_ERR(e_thread))
     {
         /* TODO:
@@ -203,6 +364,16 @@ on_error:
 
 static void __exit exercise_exit(void)
 {
+    platform_driver_unregister(&e_driver);
+
+    /* TODO:
+     *
+     *     Device 'e_device' does not have a release() function, it is broken
+     *     and must be fixed. See Documentation/core-api/kobject.rst.
+     *
+     * Problem [explanation and solution](https://tinyurl.com/ya3svc35). */
+
+    platform_device_unregister(&e_device);
     kthread_stop(e_thread);
 
 #if SYSFS_GROUP_ENABLE
