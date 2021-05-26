@@ -97,6 +97,11 @@ static ssize_t dbg_custom_string_value_set(struct file * file,
     return len_kern;
 }
 
+/* The easy way. */
+
+static bool dbg_boolval;
+static struct dentry * dbg_boolval_dent;
+
 static int dbg_create(void);
 static void dbg_remove(void);
 
@@ -125,6 +130,17 @@ static int dbg_create(void)
         goto on_error;
     }
 
+    dbg_boolval_dent = debugfs_create_bool("boolval",
+        0644, dbg_parent_dir_dent, &dbg_boolval);
+
+    if (IS_ERR(dbg_boolval_dent))
+    {
+        pr_err("unable to create debugfs boolval entry\n");
+
+        ret = -PTR_ERR(dbg_boolval_dent);
+        goto on_error;
+    }
+
     return ret;
 
 on_error:
@@ -134,6 +150,12 @@ on_error:
 
 static void dbg_remove(void)
 {
+    if (!IS_ERR_OR_NULL(dbg_boolval_dent))
+    {
+        debugfs_remove(dbg_boolval_dent);
+        dbg_boolval_dent = NULL;
+    }
+
     if (!IS_ERR_OR_NULL(dbg_custom_string_value_dent))
     {
         debugfs_remove(dbg_custom_string_value_dent);
