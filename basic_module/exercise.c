@@ -150,6 +150,10 @@ on_error:
 
 static void dbg_remove(void)
 {
+    /* TODO:
+     *
+     * Replace one-by-one removal with `debugfs_remove_recursive()`. */
+
     if (!IS_ERR_OR_NULL(dbg_boolval_dent))
     {
         debugfs_remove(dbg_boolval_dent);
