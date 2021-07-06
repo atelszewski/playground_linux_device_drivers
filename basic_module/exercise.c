@@ -205,14 +205,12 @@ static ssize_t sys_store(struct device * dev,
 
 static DEVICE_ATTR(exercise_param, 0644, sys_show, sys_store);
 
-static struct attribute * sys_attr[] =
-{
+static struct attribute * sys_attr[] = {
     &dev_attr_exercise_param.attr,
     NULL
 };
 
-static struct attribute_group const sys_group =
-{
+static struct attribute_group const sys_group = {
     .name = "e_group",
     .attrs = sys_attr
 };
